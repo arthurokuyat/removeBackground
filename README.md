@@ -33,12 +33,18 @@ This project is a web application that removes the background from uploaded imag
    pip install -r requirements.txt
    ```
 
-4. Run the application:
+4. Download the u2net model:
+   ```
+   mkdir -p /home/.u2net/
+   wget https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx -O /home/.u2net/u2net.onnx
+   ```
+
+5. Run the application:
    ```
    python app.py
    ```
 
-5. Open a web browser and navigate to `http://localhost:5000`
+6. Open a web browser and navigate to `http://localhost:5000`
 
 ## Docker Build and Run
 
@@ -92,9 +98,28 @@ This project is a web application that removes the background from uploaded imag
 
 ## Notes
 
-- The application uses the `rembg` library, which requires the `u2net.onnx` model file. Make sure this file is present in the `/home/.u2net/` directory within the Docker container.
+- The application uses the `rembg` library, which requires the `u2net.onnx` model file. 
+- We include the `u2net.onnx` file in the Docker image to improve cold start times. This is especially important for serverless deployments like Google Cloud Run.
+- You can download the `u2net.onnx` file from: https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
 - The Dockerfile uses `gunicorn` as the WSGI HTTP server for production deployment.
 - Ensure that your Google Cloud project has the necessary APIs enabled (Cloud Run, Container Registry, etc.)
+
+## Optimizing for Cold Starts
+
+Including the `u2net.onnx` file in the Docker image significantly improves cold start times, especially in serverless environments like Google Cloud Run. Here's why:
+
+1. The `u2net.onnx` file is quite large (176MB) and is required for the background removal process.
+2. By including it in the Docker image, we ensure it's immediately available when a new container instance starts.
+3. This prevents the need to download or generate the file at runtime, which would significantly slow down the first request (cold start).
+4. The tradeoff is a larger Docker image size, but the performance benefit usually outweighs this drawback for most use cases.
+
+To include the file in your Docker image, ensure your Dockerfile has a line like this:
+
+```dockerfile
+COPY u2net.onnx /home/.u2net/u2net.onnx
+```
+
+This line should be present before the application code is copied and the dependencies are installed.
 
 ## License
 
