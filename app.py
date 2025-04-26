@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from rembg.bg import remove as remove_bg
 from PIL import Image
 import os
@@ -10,10 +10,17 @@ UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# Cache for storing processed images
+cache = {}
+
 @app.post("/remove-background/")
 async def remove_background(file: UploadFile = File(...)):
     # Get the filename and remove its extension
     filename_without_ext = os.path.splitext(file.filename)[0]
+
+    # Check if the image is already cached
+    if file.filename in cache:
+        return JSONResponse(content={"processed_image_url": cache[file.filename]})
 
     input_path = os.path.join(UPLOAD_FOLDER, file.filename)
     output_path = os.path.join(UPLOAD_FOLDER, f'output_{filename_without_ext}.png')
@@ -24,9 +31,16 @@ async def remove_background(file: UploadFile = File(...)):
     # Use a more powerful model like ISNet or U2Net for background removal
     input_image = Image.open(input_path)
     output = remove_bg(input_image, session_name="u2net")  # Correct the argument name
+    # Save the processed image
     output.save(output_path)
 
-    return FileResponse(output_path, media_type="image/png", filename=f"output_{filename_without_ext}.png")
+    # Generate the processed image URL
+    processed_image_url = f"https://your-cloud-run-url/uploads/{os.path.basename(output_path)}"
+
+    # Cache the result
+    cache[file.filename] = processed_image_url
+
+    return JSONResponse(content={"processed_image_url": processed_image_url})
 
 @app.get("/", response_class=HTMLResponse)
 def root():
@@ -46,4 +60,7 @@ def root():
 </body>
 </html>"""
 
-# To run the app: uvicorn app:app --host 0.0.0.0 --port 8000
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
