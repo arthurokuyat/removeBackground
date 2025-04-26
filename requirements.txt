@@ -1,5 +1,2 @@
-Pillow
-rembg
-numpy
-flask
-gunicorn
+fastapi
+uvicorn

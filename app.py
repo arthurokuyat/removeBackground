@@ -1,41 +1,30 @@
-from flask import Flask, render_template, request, send_file
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
 from rembg import remove
 from PIL import Image
 import os
 
-app = Flask(__name__)
+app = FastAPI()
 
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-@app.route('/', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            return 'No file part'
-        file = request.files['file']
-        if file.filename == '':
-            return 'No selected file'
-        if file:
-            # Get the filename and remove its extension
-            filename_without_ext = os.path.splitext(file.filename)[0]
-            
-            input_path = os.path.join(UPLOAD_FOLDER, file.filename)
-            output_path = os.path.join(UPLOAD_FOLDER, 'output_' + filename_without_ext + '.png')
-            
-            print(output_path)
-            file.save(input_path)
-            
-            input_image = Image.open(input_path)
-            output = remove(input_image)
-            
-            output.save(output_path)
-            
-            return send_file(output_path, as_attachment=True)
-    return render_template('index.html')
+@app.post("/remove-background/")
+async def remove_background(file: UploadFile = File(...)):
+    # Get the filename and remove its extension
+    filename_without_ext = os.path.splitext(file.filename)[0]
 
-if __name__ == '__main__':
-    app.run(debug=True)
-    
-# to run docker: docker run -p 5000:5000 remove_bg
+    input_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    output_path = os.path.join(UPLOAD_FOLDER, f'output_{filename_without_ext}.png')
+
+    with open(input_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    input_image = Image.open(input_path)
+    output = remove(input_image)
+    output.save(output_path)
+
+    return FileResponse(output_path, media_type="image/png", filename=f"output_{filename_without_ext}.png")
+
+# To run the app: uvicorn app:app --host 0.0.0.0 --port 8000
